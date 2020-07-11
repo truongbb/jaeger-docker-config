@@ -1,0 +1,54 @@
+version: '3.3'
+
+services:
+
+  jaeger-collector:
+    image: ${JAEGER_COLLECTOR_IMAGE}
+    ports:
+      - "14269:14269"
+      - "14268:14268"
+      - "14267:14267"
+      - "9411:9411"
+    networks:
+      - jaeger_net
+    restart: always
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://192.168.0.103:9200
+      - LOG_LEVEL=debug
+
+  jaeger-agent:
+    image: ${JAEGER_AGENT_IMAGE}
+    hostname: jaeger-agent
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+    networks:
+      - jaeger_net
+    restart: always
+    environment:
+      - COLLECTOR_HOST_PORT=jaeger-collector:14267
+      - LOG_LEVEL=debug
+    depends_on:
+      - jaeger-collector
+
+  jaeger-query:
+    image: ${JAEGER_QUERY_IMAGE}
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://192.168.0.103:9200
+      - LOG_LEVEL=debug
+    ports:
+      - "16686:16686"
+      - "16687:16687"
+    networks:
+      - jaeger_net
+    restart: always
+    depends_on:
+      - jaeger-agent
+
+networks:
+  jaeger_net:
+    driver: bridge
