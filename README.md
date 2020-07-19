@@ -73,7 +73,11 @@ There are many deployment methods to implement jaeger, but in this document we u
 
 First of all, we define 3 images used in this deployment inside .env file:
 
-![](./image/4.png)
+```properties
+JAEGER_COLLECTOR_IMAGE=jaegertracing/jaeger-collector
+JAEGER_AGENT_IMAGE=jaegertracing/jaeger-agent
+JAEGER_QUERY_IMAGE=jaegertracing/jaeger-query
+```
 
 By default, we use the newest version of each image.
 
@@ -81,19 +85,70 @@ And the second is the last, docker-compose.yml file:
 
 - Define jaeger-collector service:
 
-![](./image/5.png)
+```yml
+jaeger-collector:
+    image: ${JAEGER_COLLECTOR_IMAGE}
+    ports:
+      - "14269:14269"
+      - "14268:14268"
+      - "14267:14267"
+      - "9411:9411"
+    networks:
+      - jaeger_net
+    restart: always
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://192.168.0.103:9200
+      - LOG_LEVEL=debug
+```
 
 - Define jaeger-agent service:
 
-![](./image/6.png)
+```yml
+jaeger-agent:
+    image: ${JAEGER_AGENT_IMAGE}
+    hostname: jaeger-agent
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+    networks:
+      - jaeger_net
+    restart: always
+    environment:
+      - COLLECTOR_HOST_PORT=jaeger-collector:14267
+      - LOG_LEVEL=debug
+    depends_on:
+      - jaeger-collector
+```
 
 - Define jaeger-query service:
 
-![](./image/7.png)
+```yml
+jaeger-query:
+    image: ${JAEGER_QUERY_IMAGE}
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://192.168.0.103:9200
+      - LOG_LEVEL=debug
+    ports:
+      - "16686:16686"
+      - "16687:16687"
+    networks:
+      - jaeger_net
+    restart: always
+    depends_on:
+      - jaeger-agent
+```
 
 - Finally, define networks:
 
-![](./image/8.png)
+```yml
+networks:
+  jaeger_net:
+    driver: bridge
+```
 
 
 And Elasticsearch is installed before in EFK stack. So we can see tracing log in Kibana with the index jaeger-span-*, jaeger-service-* and Jaeger UI too.
@@ -115,13 +170,30 @@ We can use traceId and spanId from Kibana to trace in Jaeger UI
 
 - Add dependency:
 
-![](./image/13.png)
-
+```xml
+<!-- https://mvnrepository.com/artifact/io.opentracing.contrib/opentracing-spring-jaeger-web-starter -->
+<dependency>
+    <groupId>io.opentracing.contrib</groupId>
+    <artifactId>opentracing-spring-jaeger-web-starter</artifactId>
+    <version>2.0.3</version>
+</dependency>
+```
 
 Config in application.yml:
 
 
-![](./image/14.png)
+```yml
+opentracing:
+  jaeger:
+    service-name: 'spring_truongbb'
+    enabled: true
+    enable-b3-propagation: true
+    log-spans: true
+    const-sampler:
+      decision: true
+    http-sender:
+      url: http://localhost:14268/api/traces
+```
 
 
 ## 4. Reference
